@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>대수 방탈출 · 교사용 실시간 현황판</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0a0e20; --brass:#c9a55c; --brass-dim:#97803f; --brass-glow:#e8c87a;
+  --parchment:#ece3cf; --parchment-2:#d8cdb2; --star:#f3eedd;
+  --verdigris:#5fb0a0; --rust:#c96a5a; --line:rgba(201,165,92,.28);
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  font-family:'Gowun Dodum', system-ui, sans-serif; color:var(--parchment);
+  background:
+    radial-gradient(1200px 800px at 70% -10%, #1a2249 0%, transparent 60%),
+    radial-gradient(900px 700px at 10% 110%, #161b3d 0%, transparent 55%),
+    var(--ink);
+  min-height:100%; line-height:1.6;
+}
+.wrap{ max-width:1100px; margin:0 auto; padding:26px 22px 70px; }
+.topbar{ display:flex; justify-content:space-between; align-items:center; gap:16px;
+  border-bottom:1px solid var(--line); padding-bottom:14px; flex-wrap:wrap; }
+.crest{ font-family:'Gowun Batang',serif; color:var(--brass-glow); font-size:20px; }
+.crest small{ display:block; color:var(--brass-dim); font-size:11px; letter-spacing:.18em; }
+.status{ font-size:13px; color:var(--parchment-2); }
+.status b.on{ color:var(--verdigris); } .status b.off{ color:var(--rust); }
+
+.classbar{ display:flex; gap:10px; flex-wrap:wrap; margin:22px 0 6px; }
+.classbtn{ font-family:'Gowun Dodum',sans-serif; cursor:pointer; font-size:16px;
+  padding:11px 22px; border-radius:4px; border:1px solid var(--brass-dim);
+  background:transparent; color:var(--brass); transition:all .2s; }
+.classbtn:hover{ background:rgba(201,165,92,.1); }
+.classbtn.active{ background:linear-gradient(180deg,var(--brass-glow),var(--brass)); color:#221a08; font-weight:700; border-color:var(--brass-glow); }
+
+.summary{ color:var(--parchment-2); font-size:14px; margin:14px 2px 4px; }
+.summary b{ color:var(--star); }
+
+.board{ display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+.row{
+  display:grid; grid-template-columns:54px 1fr 220px; align-items:center; gap:16px;
+  background:linear-gradient(180deg, rgba(28,35,75,.9), rgba(16,20,46,.9));
+  border:1px solid var(--line); border-radius:5px; padding:16px 18px;
+  transition:border-color .3s;
+}
+.row.escaped{ border-color:var(--brass); box-shadow:0 0 18px rgba(201,165,92,.18); }
+.rank{ font-family:'Gowun Batang',serif; font-size:26px; color:var(--brass-dim); text-align:center; }
+.row.escaped .rank{ color:var(--brass-glow); }
+.who{ min-width:0; }
+.who .name{ font-family:'Gowun Batang',serif; font-size:22px; color:var(--star); }
+.bar{ margin-top:9px; height:14px; border-radius:7px; background:rgba(10,14,32,.7);
+  border:1px solid var(--brass-dim); overflow:hidden; }
+.bar > span{ display:block; height:100%; border-radius:7px;
+  background:linear-gradient(90deg,var(--brass),var(--brass-glow)); transition:width .5s ease; }
+.bar.full > span{ background:linear-gradient(90deg,var(--verdigris),#8fd9cb); }
+.barlabel{ font-size:13px; color:var(--parchment-2); margin-top:5px; }
+.state{ text-align:right; }
+.state .badge{ font-family:'Gowun Batang',serif; font-size:18px; }
+.state .ing{ color:var(--brass); } .state .done{ color:var(--verdigris); }
+.state .clock{ font-size:24px; color:var(--star); font-variant-numeric:tabular-nums; margin-top:2px; }
+
+.empty{ text-align:center; color:var(--brass-dim); padding:60px 20px; font-size:16px; }
+.notice{ background:rgba(201,90,74,.12); border:1px solid var(--rust); border-radius:5px;
+  padding:18px 20px; margin-top:20px; color:var(--parchment); font-size:14px; line-height:1.7; }
+.notice code{ background:rgba(0,0,0,.3); padding:2px 6px; border-radius:3px; color:var(--brass-glow); }
+@media (max-width:620px){
+  .row{ grid-template-columns:40px 1fr; }
+  .state{ grid-column:2; text-align:left; margin-top:6px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="crest">대수 방탈출 · 실시간 현황판 <small>TEACHER DASHBOARD</small></div>
+    <div class="status" id="status">연결 확인 중…</div>
+  </div>
+  <div class="classbar" id="classbar"></div>
+  <div class="summary" id="summary"></div>
+  <div class="board" id="board"></div>
+  <div id="notice"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+/* ============================================================
+   ★ 설정 ─ 학생용 게임 파일과 반드시 동일하게 맞추세요.
+   firebaseConfig, COLLECTION, CLASSES 세 가지가 게임 파일과 같아야
+   같은 데이터를 읽습니다.
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "PASTE_API_KEY",
+  authDomain: "PASTE.firebaseapp.com",
+  projectId: "PASTE_PROJECT_ID",
+  storageBucket: "PASTE.appspot.com",
+  messagingSenderId: "PASTE",
+  appId: "PASTE"
+};
+const COLLECTION = "escape_sessions";          // ← 게임 파일과 동일
+const CLASSES = ["1반","2반","3반","4반","5반"]; // ← 게임 파일과 동일
+/* ============================================================ */
+
+const statusEl = document.getElementById('status');
+const boardEl  = document.getElementById('board');
+const classbar = document.getElementById('classbar');
+const summaryEl= document.getElementById('summary');
+const noticeEl = document.getElementById('notice');
+
+let db=null, ready=false;
+try{
+  if(firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")){
+    db = getFirestore(initializeApp(firebaseConfig)); ready=true;
+  }
+}catch(e){ console.warn(e); }
+
+if(!ready){
+  statusEl.innerHTML = 'Firebase 미설정 · <b class="off">연결 안 됨</b>';
+  noticeEl.innerHTML = `<div class="notice">
+    실시간 현황을 보려면 위쪽 <code>firebaseConfig</code> 를 본인 프로젝트 값으로 바꾸세요.
+    학생용 게임 파일의 <code>firebaseConfig</code>·<code>COLLECTION</code>·<code>CLASSES</code> 와 똑같아야 합니다.
+  </div>`;
+}
+
+let current = CLASSES[0];
+let rows = [];
+let unsub = null;
+
+/* 반 선택 버튼 */
+function renderClassbar(){
+  classbar.innerHTML = '';
+  CLASSES.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='classbtn'+(c===current?' active':'');
+    b.textContent=c;
+    b.onclick=()=>{ current=c; renderClassbar(); subscribe(); };
+    classbar.appendChild(b);
+  });
+}
+
+/* 선택한 반만 실시간 구독 */
+function subscribe(){
+  if(!ready) return;
+  if(unsub) unsub();
+  rows = []; render();
+  const q = query(collection(db, COLLECTION), where('classId','==', current));
+  unsub = onSnapshot(q, snap=>{
+    rows = snap.docs.map(d=>d.data());
+    render();
+  }, err=>{
+    statusEl.innerHTML = 'Firebase · <b class="off">읽기 오류</b>';
+    console.warn(err);
+  });
+  statusEl.innerHTML = `${current} 구독 중 · <b class="on">실시간 연결됨</b>`;
+}
+
+const ms = ts => (ts && ts.toMillis) ? ts.toMillis() : null;
+function fmt(sec){ if(sec==null||sec<0) return '--:--';
+  const m=Math.floor(sec/60), s=sec%60; return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); }
+
+function render(){
+  // 정렬: 탈출한 팀 먼저(빠른 순) → 진행 팀(많이 푼 순 → 먼저 시작한 순)
+  const sorted = [...rows].sort((a,b)=>{
+    if(a.escaped&&b.escaped) return (ms(a.finishedAt)||0)-(ms(b.finishedAt)||0);
+    if(a.escaped) return -1; if(b.escaped) return 1;
+    if((b.solved||0)!==(a.solved||0)) return (b.solved||0)-(a.solved||0);
+    return (ms(a.startedAt)||0)-(ms(b.startedAt)||0);
+  });
+
+  const escaped = sorted.filter(r=>r.escaped).length;
+  summaryEl.innerHTML = ready
+    ? `${current} · 참가 <b>${sorted.length}</b>개 팀 · 탈출 <b>${escaped}</b>개 팀`
+    : '';
+
+  if(!sorted.length){
+    boardEl.innerHTML = ready ? `<div class="empty">${current}에서 아직 시작한 팀이 없습니다.</div>` : '';
+    return;
+  }
+
+  const now = Date.now();
+  let rankNo = 0;
+  boardEl.innerHTML = sorted.map(r=>{
+    const total = r.total||20;
+    const solved = r.solved||0;
+    const pct = Math.round(solved/total*100);
+    const startedMs = ms(r.startedAt);
+    let stateHtml, rankHtml;
+    if(r.escaped){
+      rankNo++;
+      const medal = rankNo===1?'🥇':rankNo===2?'🥈':rankNo===3?'🥉':rankNo;
+      const sec = (startedMs&&ms(r.finishedAt))? Math.floor((ms(r.finishedAt)-startedMs)/1000) : null;
+      rankHtml = medal;
+      stateHtml = `<div class="badge done">탈출 완료</div><div class="clock">${fmt(sec)}</div>`;
+    } else {
+      rankHtml = '·';
+      const sec = startedMs? Math.floor((now-startedMs)/1000) : null;
+      stateHtml = `<div class="badge ing">진행 중 · ${solved}/${total}</div><div class="clock">${fmt(sec)}</div>`;
+    }
+    return `<div class="row${r.escaped?' escaped':''}">
+      <div class="rank">${rankHtml}</div>
+      <div class="who">
+        <div class="name">${escapeHtml(r.team||'(이름 없음)')}</div>
+        <div class="bar${solved>=total?' full':''}"><span style="width:${pct}%"></span></div>
+        <div class="barlabel">${solved} / ${total} 자물쇠 해제 (${pct}%)</div>
+      </div>
+      <div class="state">${stateHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+renderClassbar();
+if(ready){ subscribe(); setInterval(render, 1000); }  // 1초마다 진행 팀 시간 갱신
+</script>
+</body>
+</html>
