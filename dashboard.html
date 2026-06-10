@@ -32,6 +32,14 @@ body{
 .status b.on{ color:var(--verdigris); } .status b.off{ color:var(--rust); }
 
 .classbar{ display:flex; gap:10px; flex-wrap:wrap; margin:22px 0 6px; }
+.cfgbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:8px 0 2px; font-size:14px; color:var(--parchment-2); }
+.cfglabel{ color:var(--brass); }
+.limitinput{ width:80px; background:rgba(10,14,32,.6); border:1px solid var(--brass-dim); color:var(--star);
+  font-family:'Gowun Batang',serif; font-size:16px; padding:8px 10px; border-radius:3px; outline:none; }
+.limitinput:focus{ border-color:var(--brass-glow); }
+.btn-small{ font-family:'Gowun Dodum',sans-serif; cursor:pointer; border:none; padding:8px 16px; border-radius:3px;
+  font-size:14px; background:linear-gradient(180deg,var(--brass-glow),var(--brass)); color:#221a08; font-weight:700; }
+.cfgmsg{ color:var(--brass-dim); font-size:13px; }
 .classbtn{ font-family:'Gowun Dodum',sans-serif; cursor:pointer; font-size:16px;
   padding:11px 22px; border-radius:4px; border:1px solid var(--brass-dim);
   background:transparent; color:var(--brass); transition:all .2s; }
@@ -83,6 +91,7 @@ body{
     <div class="status" id="status">연결 확인 중…</div>
   </div>
   <div class="classbar" id="classbar"></div>
+  <div class="cfgbar" id="cfgbar"></div>
   <div class="summary" id="summary"></div>
   <div class="board" id="board"></div>
   <div id="notice"></div>
@@ -90,7 +99,7 @@ body{
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, query, where, onSnapshot, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ============================================================
    ★ 설정 ─ 학생용 게임 파일과 반드시 동일하게 맞추세요.
@@ -107,11 +116,13 @@ const firebaseConfig = {
 };
 const COLLECTION = "escape_sessions";          // ← 게임 파일과 동일
 const CLASSES = ["1반","2반","3반","4반","5반"]; // ← 게임 파일과 동일
+const CONFIG_COLLECTION = "class_config";      // ← 반별 제한시간 저장소 (게임 파일과 동일)
 /* ============================================================ */
 
 const statusEl = document.getElementById('status');
 const boardEl  = document.getElementById('board');
 const classbar = document.getElementById('classbar');
+const cfgbar = document.getElementById('cfgbar');
 const summaryEl= document.getElementById('summary');
 const noticeEl = document.getElementById('notice');
 
@@ -141,9 +152,40 @@ function renderClassbar(){
     const b=document.createElement('button');
     b.className='classbtn'+(c===current?' active':'');
     b.textContent=c;
-    b.onclick=()=>{ current=c; renderClassbar(); subscribe(); };
+    b.onclick=()=>{ current=c; renderClassbar(); renderCfgbar(); subscribe(); };
     classbar.appendChild(b);
   });
+}
+
+/* 선택한 반의 제한 시간(분) 입력·저장 */
+async function renderCfgbar(){
+  if(!ready){ cfgbar.innerHTML=''; return; }
+  cfgbar.innerHTML = `
+    <span class="cfglabel">${current} 제한 시간</span>
+    <input type="number" id="limitInput" class="limitinput" min="0" max="180" placeholder="분" />
+    <span>분</span>
+    <button class="btn-small" id="saveLimit">저장</button>
+    <span class="cfgmsg" id="cfgmsg">불러오는 중…</span>`;
+  const inp=document.getElementById('limitInput');
+  const msg=document.getElementById('cfgmsg');
+  let saved=null;
+  try{
+    const s=await getDoc(doc(db, CONFIG_COLLECTION, current));
+    if(s.exists() && typeof s.data().limitMin==='number') saved=s.data().limitMin;
+  }catch(e){ console.warn(e); }
+  inp.value = (saved===null?'':saved);
+  msg.textContent = (saved===null) ? '미설정 (게임 기본값 사용)'
+                  : (saved===0 ? '현재: 제한 없음' : `현재 저장됨: ${saved}분`);
+  const save=async()=>{
+    const n=parseInt(inp.value,10);
+    if(isNaN(n)||n<0){ msg.textContent='0 이상의 숫자를 입력하세요'; return; }
+    try{
+      await setDoc(doc(db, CONFIG_COLLECTION, current), { classId: current, limitMin: n });
+      msg.textContent = (n===0) ? '저장됨 · 제한 없음' : `저장됨 · ${n}분 (수업 시작 전에 저장하세요)`;
+    }catch(e){ msg.textContent='저장 실패 — 보안 규칙을 확인하세요'; console.warn(e); }
+  };
+  document.getElementById('saveLimit').onclick=save;
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter') save(); });
 }
 
 /* 선택한 반만 실시간 구독 */
@@ -235,7 +277,7 @@ function render(){
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 renderClassbar();
-if(ready){ subscribe(); setInterval(render, 1000); }  // 1초마다 진행 팀 시간 갱신
+if(ready){ renderCfgbar(); subscribe(); setInterval(render, 1000); }  // 1초마다 진행 팀 시간 갱신
 </script>
 </body>
 </html>
