@@ -62,6 +62,8 @@ body{
 .state{ text-align:right; }
 .state .badge{ font-family:'Gowun Batang',serif; font-size:18px; }
 .state .ing{ color:var(--brass); } .state .done{ color:var(--verdigris); }
+.state .over{ color:var(--rust); }
+.row.timeout{ border-color:rgba(201,90,74,.5); }
 .state .clock{ font-size:24px; color:var(--star); font-variant-numeric:tabular-nums; margin-top:2px; }
 
 .empty{ text-align:center; color:var(--brass-dim); padding:60px 20px; font-size:16px; }
@@ -165,17 +167,29 @@ function fmt(sec){ if(sec==null||sec<0) return '--:--';
   const m=Math.floor(sec/60), s=sec%60; return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); }
 
 function render(){
-  // 정렬: 탈출한 팀 먼저(빠른 순) → 진행 팀(많이 푼 순 → 먼저 시작한 순)
+  // 정렬: 탈출(완료) → 시간종료(미완료) → 진행중. 각 그룹 안에서 합리적 순서로.
+  const ended = r => r.escaped || r.timedOut;
   const sorted = [...rows].sort((a,b)=>{
+    // 1) 탈출 완료가 최상위
+    if(a.escaped&&!b.escaped) return -1;
+    if(b.escaped&&!a.escaped) return 1;
     if(a.escaped&&b.escaped) return (ms(a.finishedAt)||0)-(ms(b.finishedAt)||0);
-    if(a.escaped) return -1; if(b.escaped) return 1;
+    // 2) 시간종료(미완료)는 푼 개수 많은 순
+    if(a.timedOut&&!b.timedOut) return -1;
+    if(b.timedOut&&!a.timedOut) return 1;
+    if(a.timedOut&&b.timedOut){
+      if((b.solved||0)!==(a.solved||0)) return (b.solved||0)-(a.solved||0);
+      return (ms(a.startedAt)||0)-(ms(b.startedAt)||0);
+    }
+    // 3) 진행 중은 푼 개수 많은 순 → 먼저 시작한 순
     if((b.solved||0)!==(a.solved||0)) return (b.solved||0)-(a.solved||0);
     return (ms(a.startedAt)||0)-(ms(b.startedAt)||0);
   });
 
   const escaped = sorted.filter(r=>r.escaped).length;
+  const timedOut = sorted.filter(r=>r.timedOut&&!r.escaped).length;
   summaryEl.innerHTML = ready
-    ? `${current} · 참가 <b>${sorted.length}</b>개 팀 · 탈출 <b>${escaped}</b>개 팀`
+    ? `${current} · 참가 <b>${sorted.length}</b>개 팀 · 탈출 <b>${escaped}</b>개 팀 · 시간종료 <b>${timedOut}</b>개 팀`
     : '';
 
   if(!sorted.length){
@@ -190,19 +204,23 @@ function render(){
     const solved = r.solved||0;
     const pct = Math.round(solved/total*100);
     const startedMs = ms(r.startedAt);
-    let stateHtml, rankHtml;
+    let stateHtml, rankHtml, rowCls='';
     if(r.escaped){
       rankNo++;
       const medal = rankNo===1?'🥇':rankNo===2?'🥈':rankNo===3?'🥉':rankNo;
       const sec = (startedMs&&ms(r.finishedAt))? Math.floor((ms(r.finishedAt)-startedMs)/1000) : null;
-      rankHtml = medal;
+      rankHtml = medal; rowCls=' escaped';
       stateHtml = `<div class="badge done">탈출 완료</div><div class="clock">${fmt(sec)}</div>`;
+    } else if(r.timedOut){
+      const sec = (startedMs&&ms(r.finishedAt))? Math.floor((ms(r.finishedAt)-startedMs)/1000) : null;
+      rankHtml = '⏱'; rowCls=' timeout';
+      stateHtml = `<div class="badge over">시간 종료 · ${solved}/${total}</div><div class="clock">${fmt(sec)}</div>`;
     } else {
       rankHtml = '·';
       const sec = startedMs? Math.floor((now-startedMs)/1000) : null;
       stateHtml = `<div class="badge ing">진행 중 · ${solved}/${total}</div><div class="clock">${fmt(sec)}</div>`;
     }
-    return `<div class="row${r.escaped?' escaped':''}">
+    return `<div class="row${rowCls}">
       <div class="rank">${rankHtml}</div>
       <div class="who">
         <div class="name">${escapeHtml(r.team||'(이름 없음)')}</div>
