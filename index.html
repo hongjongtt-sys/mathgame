@@ -124,6 +124,8 @@ input[type=text]{
   border-radius:3px; outline:none; transition:border-color .2s, box-shadow .2s;
 }
 input[type=text]:focus{ border-color:var(--brass-glow); box-shadow:0 0 0 2px rgba(232,200,122,.18); }
+.classsel{ background:rgba(10,14,32,.6); border:1px solid var(--brass-dim); color:var(--star);
+  font-family:'Gowun Batang',serif; font-size:18px; padding:13px 12px; border-radius:3px; outline:none; cursor:pointer; }
 
 button{ font-family:'Gowun Dodum',sans-serif; cursor:pointer; border:none;
   padding:13px 22px; border-radius:3px; font-size:15px; letter-spacing:.04em;
@@ -181,6 +183,12 @@ button:active{ transform:translateY(1px); }
 
 <script>
 /* ============================================================
+   ★ 0. 반 목록 ─ 현황판(dashboard) 파일과 반드시 똑같이 유지하세요.
+   개수를 늘리거나 이름을 바꿔도 됩니다 (예: "2-1","2-2", "1학년 3반" ...).
+   ============================================================ */
+const CLASSES = ["1반","2반","3반","4반","5반"];
+
+/* ============================================================
    ★ 1. 최종 정답 ─ 팀이 단서를 조합해 맞혀야 하는 답
    accept 에 허용 답안을 여러 개(동의어 포함). 띄어쓰기·대소문자 무시.
    ============================================================ */
@@ -223,7 +231,7 @@ const CLUES = [
    problem : 문제 (LaTeX는 \\( \\) 안에, JS라서 \ 는 \\ 로!)
    answer  : 정답 목록(배열). 공백·대소문자 무시, 여러 표기 허용.
    각 줄 끝 주석의 [하]/[중]/[상] 은 선생님 참고용 난이도 (학생에게는 안 보임).
-   구성: 하 3 · 중 11 · 상 6  (변별용 도전 문제 포함)
+   구성: 하 3 · 중 12 · 상 5  (변별용 도전 문제 포함)
    ============================================================ */
 const PROBLEMS = [
   { unit:"지수·로그", problem:"\\(\\log_{2}32\\) 의 값을 구하시오.", answer:["5"] },                                                                                              // [하]
@@ -257,6 +265,7 @@ const teamLabel = document.getElementById('teamLabel');
 const countLabel = document.getElementById('countLabel');
 
 let teamName = '';
+let classId = '';
 let solved = PROBLEMS.map(()=>false);
 let startTime=null, timerId=null;
 
@@ -288,7 +297,7 @@ function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.rand
 function newRound(){ if(SHUFFLE) shuffle(PROBLEMS); solved=PROBLEMS.map(()=>false); }
 
 function updateHeader(){
-  teamLabel.innerHTML = teamName ? `팀 <b>${teamName}</b>` : '';
+  teamLabel.innerHTML = teamName ? `${classId?classId+' · ':''}팀 <b>${teamName}</b>` : '';
   countLabel.textContent = teamName ? `자물쇠 ${solvedCount()} / ${PROBLEMS.length}` : '';
 }
 
@@ -300,12 +309,21 @@ function renderStart(){
       <h1>스무 개의 자물쇠</h1>
       <p class="lede">서고에는 스무 개의 자물쇠가 걸려 있습니다. 자물쇠를 하나 풀 때마다 숨겨진 정답에 대한 <b>단서</b>가 한 줄씩 풀립니다. 단서는 <b>가장 어려운(모호한) 것부터</b> 열리고, 풀수록 점점 또렷해집니다. 타일에는 단원이 색으로 표시되니 팀원끼리 강한 단원을 나눠 맡으세요. 단서를 모아 정답을 추론해 입력하면 탈출합니다.</p>
       <div class="start-row">
+        <select id="classSel" class="classsel"></select>
         <input type="text" id="team" placeholder="팀 이름을 입력하세요" autocomplete="off" />
         <button class="btn-primary" id="begin">탐험 시작</button>
       </div>
     </div>`;
+  const sel=document.getElementById('classSel');
+  sel.innerHTML = CLASSES.map(c=>`<option value="${c}">${c}</option>`).join('');
   const t=document.getElementById('team');
-  const go=()=>{ teamName=t.value.trim()||'무명의 탐험대'; newRound(); startTimer(); renderGame(); };
+  const go=()=>{
+    teamName=t.value.trim()||'무명의 탐험대';
+    classId=sel.value||CLASSES[0];
+    newRound(); startTimer();
+    if(window.Cloud) window.Cloud.start(classId, teamName, PROBLEMS.length);
+    renderGame();
+  };
   document.getElementById('begin').onclick=go;
   t.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
   t.focus();
@@ -407,6 +425,7 @@ function openProblem(i){
   const check=()=>{
     if(matches(ans.value, p.answer)){
       solved[i]=true; updateHeader(); renderGrid(); renderClues();
+      if(window.Cloud) window.Cloud.solve(solvedCount());
       const n=openClues();
       const newClue = n>0 ? `<div class="newclue">${CLUES[n-1]}</div>`
         : `<p class="lede">공개할 단서가 모두 소진되었습니다.</p>`;
@@ -433,6 +452,7 @@ function openProblem(i){
 /* ── 탈출 ── */
 function renderEscape(){
   stopTimer();
+  if(window.Cloud) window.Cloud.escape(solvedCount());
   app.innerHTML = `
     <div class="card escape fade">
       <div class="eyebrow">탈출 성공</div>
@@ -442,12 +462,56 @@ function renderEscape(){
       <button class="btn-ghost btn-big" id="again" style="margin-top:22px;">다른 팀으로 다시 시작</button>
     </div>`;
   document.getElementById('again').onclick=()=>{
-    teamName=''; solved=PROBLEMS.map(()=>false);
+    teamName=''; classId=''; solved=PROBLEMS.map(()=>false);
     stopTimer(); startTime=null; timerEl.textContent='00:00'; updateHeader(); renderStart();
   };
 }
 
 renderStart();
+</script>
+
+<!-- ============================================================
+     ★ Firebase 연결 (실시간 현황판 기록용)
+     아래 firebaseConfig 를 본인 프로젝트 값으로 교체하세요.
+     (Firebase 콘솔 → 프로젝트 설정 → '내 앱' → SDK 설정 및 구성)
+     PASTE 상태로 두면 클라우드 없이 게임만 정상 동작합니다.
+     COLLECTION 값은 현황판 파일과 반드시 동일해야 합니다.
+     ============================================================ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "PASTE_API_KEY",
+  authDomain: "PASTE.firebaseapp.com",
+  projectId: "PASTE_PROJECT_ID",
+  storageBucket: "PASTE.appspot.com",
+  messagingSenderId: "PASTE",
+  appId: "PASTE"
+};
+const COLLECTION = "escape_sessions";   // ← 현황판과 반드시 동일
+
+let db=null, ready=false;
+try{
+  if(firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE")){
+    db = getFirestore(initializeApp(firebaseConfig)); ready=true;
+  }
+}catch(e){ console.warn("Firebase 초기화 실패:", e); }
+
+function sid(c,t){ return (c+"__"+t).replace(/[\/\.\#\$\[\]\s]+/g,"_").slice(0,180); }
+let ref=null;
+window.Cloud = {
+  enabled:()=>ready,
+  async start(classId, team, total){
+    if(!ready) return;
+    try{ ref = doc(db, COLLECTION, sid(classId,team));
+      await setDoc(ref,{ classId, team, solved:0, total, escaped:false,
+        startedAt: serverTimestamp(), finishedAt:null, lastUpdate: serverTimestamp() });
+    }catch(e){ console.warn(e); }
+  },
+  async solve(n){ if(!ready||!ref) return; try{ await updateDoc(ref,{ solved:n, lastUpdate: serverTimestamp() }); }catch(e){ console.warn(e); } },
+  async escape(n){ if(!ready||!ref) return; try{ await updateDoc(ref,{ solved:n, escaped:true, finishedAt: serverTimestamp(), lastUpdate: serverTimestamp() }); }catch(e){ console.warn(e); } }
+};
 </script>
 </body>
 </html>
