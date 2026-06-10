@@ -51,6 +51,10 @@ body{
 .meta .team b{ color:var(--star); }
 .meta .count{ color:var(--brass); font-size:14px; }
 .timer{ font-family:'Gowun Batang',serif; color:var(--brass); font-size:18px; font-variant-numeric:tabular-nums; }
+.timer.timeup{ color:var(--rust); }
+.toast{ position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:80; max-width:90%;
+  background:rgba(201,90,74,.96); color:#fff; padding:12px 20px; border-radius:6px; font-size:14px;
+  box-shadow:0 12px 34px rgba(0,0,0,.45); animation:fade .4s ease; text-align:center; }
 
 h1{ font-family:'Gowun Batang',serif; font-size:30px; line-height:1.3; color:var(--star); margin:6px 0 14px; font-weight:700; }
 h2{ font-family:'Gowun Batang',serif; font-size:21px; color:var(--star); margin:0 0 4px; font-weight:700; }
@@ -189,6 +193,14 @@ button:active{ transform:translateY(1px); }
 const CLASSES = ["1반","2반","3반","4반","5반"];
 
 /* ============================================================
+   ★ 0-2. 제한 시간(분) ─ 학생이 '탐험 시작'을 누른 순간부터 카운트다운.
+   숫자만 바꾸면 됩니다. 0 으로 두면 제한 없음(시간이 위로 흐름).
+   시간이 0이 되면 그 시점의 해제 개수로 현황판 순위가 고정되고,
+   학생은 그 뒤에도 계속 문제를 풀 수 있습니다(잠그지 않음).
+   ============================================================ */
+const LIMIT_MIN = 30;
+
+/* ============================================================
    ★ 1. 최종 정답 ─ 팀이 단서를 조합해 맞혀야 하는 답
    accept 에 허용 답안을 여러 개(동의어 포함). 띄어쓰기·대소문자 무시.
    ============================================================ */
@@ -267,7 +279,7 @@ const countLabel = document.getElementById('countLabel');
 let teamName = '';
 let classId = '';
 let solved = PROBLEMS.map(()=>false);
-let startTime=null, timerId=null;
+let startTime=null, timerId=null, timeUp=false;
 
 (function makeStars(){
   const box=document.getElementById('stars');
@@ -277,9 +289,27 @@ let startTime=null, timerId=null;
     if(Math.random()>0.85){ s.style.width='3px'; s.style.height='3px'; } box.appendChild(s); }
 })();
 
-function startTimer(){ if(timerId) return; startTime=Date.now();
-  timerId=setInterval(()=>{ const sec=Math.floor((Date.now()-startTime)/1000);
-    timerEl.textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0'); },250); }
+function fmtClock(sec){ if(sec<0) sec=0; return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0'); }
+function startTimer(){ if(timerId) return; startTime=Date.now(); timeUp=false; timerEl.classList.remove('timeup');
+  timerId=setInterval(()=>{
+    const elapsed=Math.floor((Date.now()-startTime)/1000);
+    if(LIMIT_MIN>0){
+      const remain=LIMIT_MIN*60-elapsed;
+      if(remain<=0){
+        timerEl.textContent='시간 종료';
+        if(!timeUp){ timeUp=true; onTimeUp(); }
+      } else { timerEl.textContent=fmtClock(remain); }
+    } else {
+      timerEl.textContent=fmtClock(elapsed);
+    }
+  },250); }
+function onTimeUp(){
+  timerEl.classList.add('timeup');
+  if(window.Cloud) window.Cloud.timeout(solvedCount());
+  const t=document.createElement('div'); t.className='toast';
+  t.textContent='제한 시간이 종료되었습니다 · 순위 기록은 이 시점으로 집계됩니다 (문제는 계속 풀 수 있어요)';
+  document.body.appendChild(t); setTimeout(()=>t.remove(), 6000);
+}
 function stopTimer(){ clearInterval(timerId); timerId=null; }
 function elapsedText(){ const sec=Math.floor((Date.now()-startTime)/1000); return Math.floor(sec/60)+'분 '+(sec%60)+'초'; }
 
@@ -425,7 +455,7 @@ function openProblem(i){
   const check=()=>{
     if(matches(ans.value, p.answer)){
       solved[i]=true; updateHeader(); renderGrid(); renderClues();
-      if(window.Cloud) window.Cloud.solve(solvedCount());
+      if(window.Cloud && !timeUp) window.Cloud.solve(solvedCount());
       const n=openClues();
       const newClue = n>0 ? `<div class="newclue">${CLUES[n-1]}</div>`
         : `<p class="lede">공개할 단서가 모두 소진되었습니다.</p>`;
@@ -452,7 +482,7 @@ function openProblem(i){
 /* ── 탈출 ── */
 function renderEscape(){
   stopTimer();
-  if(window.Cloud) window.Cloud.escape(solvedCount());
+  if(window.Cloud && !timeUp) window.Cloud.escape(solvedCount());
   app.innerHTML = `
     <div class="card escape fade">
       <div class="eyebrow">탈출 성공</div>
@@ -462,8 +492,8 @@ function renderEscape(){
       <button class="btn-ghost btn-big" id="again" style="margin-top:22px;">다른 팀으로 다시 시작</button>
     </div>`;
   document.getElementById('again').onclick=()=>{
-    teamName=''; classId=''; solved=PROBLEMS.map(()=>false);
-    stopTimer(); startTime=null; timerEl.textContent='00:00'; updateHeader(); renderStart();
+    teamName=''; classId=''; solved=PROBLEMS.map(()=>false); timeUp=false;
+    stopTimer(); startTime=null; timerEl.textContent='00:00'; timerEl.classList.remove('timeup'); updateHeader(); renderStart();
   };
 }
 
@@ -510,6 +540,7 @@ window.Cloud = {
     }catch(e){ console.warn(e); }
   },
   async solve(n){ if(!ready||!ref) return; try{ await updateDoc(ref,{ solved:n, lastUpdate: serverTimestamp() }); }catch(e){ console.warn(e); } },
+  async timeout(n){ if(!ready||!ref) return; try{ await updateDoc(ref,{ solved:n, timedOut:true, finishedAt: serverTimestamp(), lastUpdate: serverTimestamp() }); }catch(e){ console.warn(e); } },
   async escape(n){ if(!ready||!ref) return; try{ await updateDoc(ref,{ solved:n, escaped:true, finishedAt: serverTimestamp(), lastUpdate: serverTimestamp() }); }catch(e){ console.warn(e); } }
 };
 </script>
