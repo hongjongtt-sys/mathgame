@@ -1,343 +1,451 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>대수 방탈출 : 역사적 진실을 찾아서</title>
-    <!-- MathJax for LaTeX rendering -->
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    <style>
-        :root {
-            --bg-color: #1e1e2f;
-            --text-color: #f5f5f5;
-            --primary: #4a90e2;
-            --solved: #2ecc71;
-            --log-color: #e74c3c;
-            --trig-color: #9b59b6;
-            --seq-color: #f1c40f;
-        }
-        body {
-            font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        h1 { margin-bottom: 5px; }
-        .subtitle { color: #aaa; margin-bottom: 30px; }
-        
-        .container {
-            display: flex;
-            gap: 30px;
-            max-width: 1000px;
-            width: 100%;
-        }
-        .board-container { flex: 2; }
-        .clue-container {
-            flex: 1;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 20px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            max-height: 600px;
-            overflow-y: auto;
-        }
-        
-        /* Grid */
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-        }
-        .tile {
-            background: rgba(255,255,255,0.1);
-            border-radius: 8px;
-            padding: 20px 10px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            position: relative;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-        .tile:hover { transform: translateY(-3px); }
-        .tile.solved { background: var(--solved); color: #fff; cursor: default; }
-        
-        .tag {
-            font-size: 0.75rem;
-            padding: 3px 6px;
-            border-radius: 4px;
-            margin-bottom: 8px;
-            display: inline-block;
-            font-weight: bold;
-        }
-        .tag.log { background-color: var(--log-color); color: #fff; }
-        .tag.trig { background-color: var(--trig-color); color: #fff; }
-        .tag.seq { background-color: var(--seq-color); color: #222; }
-        
-        /* Clues */
-        .clue-item {
-            background: rgba(0,0,0,0.3);
-            padding: 12px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            border-left: 4px solid var(--primary);
-            font-size: 0.9rem;
-            line-height: 1.4;
-        }
-        
-        /* Modal */
-        #modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .modal-content {
-            background: #2c2c3e;
-            padding: 30px;
-            border-radius: 10px;
-            text-align: center;
-            max-width: 400px;
-            width: 90%;
-        }
-        .modal-content input {
-            padding: 10px;
-            width: 80%;
-            margin: 20px 0;
-            border-radius: 5px;
-            border: none;
-            font-size: 1rem;
-            text-align: center;
-        }
-        .btn {
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1rem;
-        }
-        .btn:hover { background: #357abd; }
-        .btn-close { background: #e74c3c; margin-left: 10px; }
-        
-        /* Final */
-        .final-section {
-            margin-top: 40px;
-            padding: 20px;
-            background: rgba(231, 76, 60, 0.2);
-            border: 2px solid #e74c3c;
-            border-radius: 10px;
-            width: 100%;
-            max-width: 1000px;
-            text-align: center;
-        }
-        .final-input {
-            padding: 12px;
-            font-size: 1.2rem;
-            width: 250px;
-            border-radius: 5px;
-            border: none;
-            margin-right: 10px;
-            text-align: center;
-        }
-    </style>
-</head>
-<body>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스무 개의 자물쇠 · 대수 추리 방탈출</title>
 
-    <h1>대수 방탈출 : 20개의 봉인</h1>
-    <div class="subtitle">문제를 풀 때마다 단서가 열립니다. 단서를 조합해 최종 정답을 맞혀 탈출하세요.</div>
-
-    <div class="container">
-        <div class="board-container">
-            <div class="grid" id="grid"></div>
-        </div>
-        <div class="clue-container">
-            <h3>획득한 단서 (<span id="clue-count">0</span>/20)</h3>
-            <div id="clues"></div>
-        </div>
-    </div>
-
-    <div class="final-section">
-        <h2>🔒 최종 탈출</h2>
-        <p>조합된 단서가 가리키는 역사적 유산의 이름은 무엇입니까?</p>
-        <input type="text" id="final-answer" class="final-input" placeholder="정답 입력">
-        <button class="btn" onclick="checkFinal()">탈출 시도</button>
-    </div>
-
-    <!-- 문제 풀이 모달 -->
-    <div id="modal">
-        <div class="modal-content">
-            <div id="modal-tag" class="tag"></div>
-            <h3 id="modal-title"></h3>
-            <div id="modal-problem" style="font-size: 1.2rem; margin: 20px 0;"></div>
-            <input type="text" id="modal-input" placeholder="정답을 입력하세요">
-            <br>
-            <button class="btn" onclick="checkAnswer()">확인</button>
-            <button class="btn btn-close" onclick="closeModal()">취소</button>
-        </div>
-    </div>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
 
 <script>
-    // [설정 영역 1] 최종 정답 설정 (띄어쓰기 무시 처리됨)
-    const FINAL_ANSWERS = ["팔만대장경", "해인사대장경판", "합천해인사대장경판"];
+  window.MathJax = {
+    tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+    svg: { fontCache: 'global' }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
 
-    // [설정 영역 2] 단서 20개 (점층적 배치: 모호함 -> 구체적)
-    const CLUES = [
-        "이 유산은 완성하기까지 무려 16년이라는 긴 시간이 걸렸습니다.",
-        "목판의 두께는 약 4cm, 무게는 평균 3~4kg에 달합니다.",
-        "제작에 사용된 나무는 주로 산벚나무와 돌배나무였습니다.",
-        "뒤틀림을 막기 위해 나무를 바닷물에 3년 이상 담가두는 과학적 과정을 거쳤습니다.",
-        "보관 장소는 자연 통풍과 습도 조절이 완벽하게 이루어지는 구조로 유명합니다.",
-        "이 유산의 제작은 국난을 극복하고자 하는 종교적인 염원에서 비롯되었습니다.",
-        "이전에 있었던 유사한 유산이 1232년에 불타버린 것이 이것을 다시 만드는 계기가 되었습니다.",
-        "앞서 소실된 유산의 이름은 '초조대장경'이었습니다.",
-        "이것이 만들어진 시기는 고려 고종 시대입니다.",
-        "당시 고려는 외적의 침입을 받아 강화도로 도읍을 옮긴 상태였습니다.",
-        "침입한 외적은 당시 유라시아 대륙을 휩쓸던 '몽골 제국'이었습니다.",
-        "강화도 최씨 무신정권의 전폭적인 지원 아래 '대장도감'이 설치되어 제작되었습니다.",
-        "완성된 후 처음에는 강화도 선원사에 보관되었습니다.",
-        "그 후 조선 태조 때, 보존을 위해 현재의 위치로 옮겨졌습니다.",
-        "현재 이 유산은 경상남도 합천군에 보관되어 있습니다.",
-        "2007년 그 가치를 인정받아 유네스코 세계기록유산으로 등재되었습니다.",
-        "새겨진 글자 수가 약 5천 2백만 자에 달하며, 오탈자가 거의 없어 완벽에 가깝습니다.",
-        "목판의 총 개수는 정확히 81,258장입니다.",
-        "이 '8만여 장'이라는 상징적인 숫자 때문에 이 유산의 이름이 정해졌습니다.",
-        "부처의 가르침을 집대성한 고려 시대 최고의 목판 인쇄물, '이것'은 무엇일까요?"
-    ];
+<style>
+:root{
+  --ink:#0a0e20; --ink-2:#141a38; --ink-3:#1d244b;
+  --brass:#c9a55c; --brass-dim:#97803f; --brass-glow:#e8c87a;
+  --parchment:#ece3cf; --parchment-2:#d8cdb2; --star:#f3eedd;
+  --verdigris:#5fb0a0; --rust:#c96a5a; --line:rgba(201,165,92,.28);
+  --u-a:#e0ad57; --u-b:#7fc7b8; --u-c:#b6a9f5;
+}
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  font-family:'Gowun Dodum', system-ui, sans-serif; color:var(--parchment);
+  background:
+    radial-gradient(1200px 800px at 70% -10%, #1a2249 0%, transparent 60%),
+    radial-gradient(900px 700px at 10% 110%, #161b3d 0%, transparent 55%),
+    var(--ink);
+  min-height:100%; line-height:1.65;
+}
+#stars{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+.star{ position:absolute; width:2px; height:2px; border-radius:50%; background:var(--star);
+  opacity:.5; animation:twinkle var(--dur,4s) ease-in-out infinite var(--del,0s); }
+@keyframes twinkle{ 0%,100%{opacity:.15;} 50%{opacity:.85;} }
 
-    // [설정 영역 3] 20개 문항 (지수/로그, 삼각함수, 수열 난이도 혼합)
-    // 수학 수식은 \\( ... \\) 또는 \\[ ... \\] 안에 작성합니다.
-    const PROBLEMS = [
-        { id: 1, type: "log", name: "지수와 로그", q: "\\( \\log_2 8 + \\log_3 9 \\) 의 값을 구하시오.", a: ["5"], solved: false },
-        { id: 2, type: "log", name: "지수와 로그", q: "방정식 \\( 2^{x+1} = 16 \\) 의 해를 구하시오.", a: ["3"], solved: false },
-        { id: 3, type: "log", name: "지수와 로그", q: "\\( \\log_x 27 = 3 \\) 을 만족하는 실수 x를 구하시오.", a: ["3"], solved: false },
-        { id: 4, type: "log", name: "지수와 로그", q: "방정식 \\( 3^{2x} - 12 \\cdot 3^x + 27 = 0 \\) 의 모든 실근의 합은?", a: ["3"], solved: false },
-        { id: 5, type: "log", name: "지수와 로그", q: "\\( \\log_2 x + \\log_2 (x-2) = 3 \\) 을 만족하는 양수 x는?", a: ["4"], solved: false },
-        { id: 6, type: "log", name: "지수와 로그", q: "방정식 \\( 4^x = \\frac{1}{16} \\) 의 해를 구하시오.", a: ["-2"], solved: false },
-        { id: 7, type: "log", name: "지수와 로그", q: "두 함수 \\( y = 2^x \\) 와 \\( y = \\log_2 x \\) 는 직선 \\( y = f(x) \\) 에 대하여 대칭이다. \\( f(3) \\) 의 값은?", a: ["3"], solved: false },
-        
-        { id: 8, type: "trig", name: "삼각함수", q: "\\( 0 \\le x < \\pi \\) 일 때, \\( \\sin x = \\frac{1}{2} \\) 의 모든 근의 합을 \\( k\\pi \\) 라 하자. \\( k \\) 의 값은?", a: ["1"], solved: false },
-        { id: 9, type: "trig", name: "삼각함수", q: "함수 \\( y = 2 \\sin(3x) + 1 \\) 의 최댓값을 구하시오.", a: ["3"], solved: false },
-        { id: 10, type: "trig", name: "삼각함수", q: "반지름이 5인 원에 내접하는 삼각형 ABC에서 \\( A = 30^\\circ \\) 일 때, 변 a의 길이는?", a: ["5"], solved: false },
-        { id: 11, type: "trig", name: "삼각함수", q: "\\( 0 \\le x \\le 2\\pi \\) 일 때, \\( \\cos x = -1 \\) 을 만족하는 x의 값은 \\( k\\pi \\) 이다. 상수 k는?", a: ["1"], solved: false },
-        { id: 12, type: "trig", name: "삼각함수", q: "삼각형 ABC에서 \\( a=3, b=5, C=60^\\circ \\) 일 때, 변 c의 제곱(\\( c^2 \\))의 값은?", a: ["19"], solved: false },
-        { id: 13, type: "trig", name: "삼각함수", q: "함수 \\( y = \\tan(2x) \\) 의 주기를 \\( \\frac{\\pi}{a} \\) 라 할 때, 상수 a의 값은?", a: ["2"], solved: false },
-        
-        { id: 14, type: "seq", name: "수열", q: "등차수열에서 \\( a_2 = 5, a_5 = 14 \\) 일 때, 공차를 구하시오.", a: ["3"], solved: false },
-        { id: 15, type: "seq", name: "수열", q: "모든 항이 양수인 등비수열에서 \\( a_1 = 2, a_4 = 54 \\) 일 때, 공비는?", a: ["3"], solved: false },
-        { id: 16, type: "seq", name: "수열", q: "\\( \\sum_{k=1}^{10} 2k \\) 의 값을 구하시오.", a: ["110"], solved: false },
-        { id: 17, type: "seq", name: "수열", q: "수열의 합 \\( S_n = n^2 + n \\) 일 때, \\( a_5 \\) 의 값을 구하시오.", a: ["10"], solved: false },
-        { id: 18, type: "seq", name: "수열", q: "\\( a_1 = 1, a_{n+1} = a_n + 4 \\) 로 정의된 수열에서 \\( a_6 \\) 의 값은?", a: ["21"], solved: false },
-        { id: 19, type: "seq", name: "수열", q: "\\( \\sum_{k=1}^{8} (3k - 2) \\) 의 값을 구하시오.", a: ["92"], solved: false },
-        { id: 20, type: "seq", name: "수열", q: "\\( a_1 = 2, a_{n+1} = 3 a_n \\) 로 정의된 수열에서 \\( a_4 \\) 의 값은?", a: ["54"], solved: false }
-    ];
+.wrap{ position:relative; z-index:1; max-width:960px; margin:0 auto; padding:26px 18px 90px; }
 
-    // 배열을 무작위로 섞는 함수 (게임의 탐색적 재미를 위해)
-    function shuffle(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
-        }
+.topbar{ display:flex; justify-content:space-between; align-items:center; gap:12px;
+  border-bottom:1px solid var(--line); padding-bottom:13px; flex-wrap:wrap; }
+.crest{ font-family:'Gowun Batang',serif; letter-spacing:.04em; color:var(--brass-glow); font-size:15px; }
+.crest small{ display:block; color:var(--brass-dim); font-size:11px; letter-spacing:.18em; }
+.meta{ display:flex; gap:18px; align-items:center; }
+.meta .team{ color:var(--parchment-2); font-size:14px; }
+.meta .team b{ color:var(--star); }
+.meta .count{ color:var(--brass); font-size:14px; }
+.timer{ font-family:'Gowun Batang',serif; color:var(--brass); font-size:18px; font-variant-numeric:tabular-nums; }
+
+h1{ font-family:'Gowun Batang',serif; font-size:30px; line-height:1.3; color:var(--star); margin:6px 0 14px; font-weight:700; }
+h2{ font-family:'Gowun Batang',serif; font-size:21px; color:var(--star); margin:0 0 4px; font-weight:700; }
+.eyebrow{ color:var(--brass); font-size:12px; letter-spacing:.26em; text-transform:uppercase; }
+.lede{ color:var(--parchment-2); }
+
+.card{
+  background:linear-gradient(180deg, rgba(28,35,75,.92), rgba(16,20,46,.92));
+  border:1px solid var(--line); border-radius:4px; padding:26px 24px; margin-top:18px;
+  box-shadow:0 20px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.start-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+
+.layout{ display:grid; grid-template-columns:1.05fr .95fr; gap:18px; margin-top:18px; }
+@media (max-width:780px){ .layout{ grid-template-columns:1fr; } }
+
+.panel{
+  background:linear-gradient(180deg, rgba(28,35,75,.9), rgba(16,20,46,.9));
+  border:1px solid var(--line); border-radius:4px; padding:20px;
+}
+.panel h2{ margin-bottom:12px; }
+
+/* 단원 범례 */
+.legend{ display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px; font-size:12px; }
+.legend span{ display:inline-flex; align-items:center; gap:6px; color:var(--parchment-2); }
+.legend .dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+.dot-a{ background:var(--u-a); } .dot-b{ background:var(--u-b); } .dot-c{ background:var(--u-c); }
+
+/* 문제 타일 */
+.grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:9px; }
+@media (max-width:520px){ .grid{ grid-template-columns:repeat(4,1fr); } }
+.tile{
+  aspect-ratio:1/1; border:1px solid var(--brass-dim); border-radius:4px;
+  background:rgba(10,14,32,.5); cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  transition:all .2s; padding:2px;
+}
+.tile .utag{ font-size:9.5px; line-height:1; white-space:nowrap; opacity:.9; }
+.tile .tnum{ font-family:'Gowun Batang',serif; font-size:19px; color:var(--parchment); }
+.tile:hover{ background:rgba(201,165,92,.1); filter:brightness(1.12); }
+.tile.unit-a{ border-color:#a9803c; } .tile.unit-a .utag{ color:var(--u-a); }
+.tile.unit-b{ border-color:#3f7e72; } .tile.unit-b .utag{ color:var(--u-b); }
+.tile.unit-c{ border-color:#6a5db0; } .tile.unit-c .utag{ color:var(--u-c); }
+.tile.solved{ background:linear-gradient(180deg,var(--brass-glow),var(--brass));
+  border-color:var(--brass-glow); box-shadow:0 0 14px rgba(232,200,122,.45); }
+.tile.solved .utag{ color:#5a4a1e; }
+.tile.solved .tnum{ color:#221a08; }
+
+/* 단서 보드 */
+.clues{ display:flex; flex-direction:column; gap:7px; max-height:430px; overflow-y:auto; padding-right:6px; }
+.clues::-webkit-scrollbar{ width:8px; }
+.clues::-webkit-scrollbar-thumb{ background:var(--brass-dim); border-radius:4px; }
+.clue{
+  display:flex; gap:10px; align-items:flex-start;
+  border:1px solid rgba(201,165,92,.18); border-radius:3px; padding:9px 11px;
+  background:rgba(10,14,32,.35); font-size:14px;
+}
+.clue .no{ font-family:'Gowun Batang',serif; color:var(--brass-dim); min-width:24px; }
+.clue.open{ background:rgba(201,165,92,.08); border-color:var(--brass); }
+.clue.open .no{ color:var(--brass-glow); }
+.clue .text{ color:var(--parchment-2); }
+.clue.open .text{ color:var(--star); }
+.locked-text{ color:var(--brass-dim); letter-spacing:.2em; }
+
+.final{ margin-top:18px; }
+.answer-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+input[type=text]{
+  flex:1; min-width:160px; background:rgba(10,14,32,.6); border:1px solid var(--brass-dim);
+  color:var(--star); font-family:'Gowun Batang',serif; font-size:18px; padding:13px 15px;
+  border-radius:3px; outline:none; transition:border-color .2s, box-shadow .2s;
+}
+input[type=text]:focus{ border-color:var(--brass-glow); box-shadow:0 0 0 2px rgba(232,200,122,.18); }
+
+button{ font-family:'Gowun Dodum',sans-serif; cursor:pointer; border:none;
+  padding:13px 22px; border-radius:3px; font-size:15px; letter-spacing:.04em;
+  transition:transform .12s, filter .2s, background .2s; }
+button:active{ transform:translateY(1px); }
+.btn-primary{ background:linear-gradient(180deg,var(--brass-glow),var(--brass)); color:#221a08; font-weight:700; }
+.btn-primary:hover{ filter:brightness(1.08); }
+.btn-ghost{ background:transparent; color:var(--brass); border:1px solid var(--brass-dim); }
+.btn-ghost:hover{ background:rgba(201,165,92,.1); }
+.btn-big{ width:100%; margin-top:10px; padding:16px; font-size:17px; }
+
+.feedback{ margin-top:12px; min-height:22px; font-size:15px; }
+.feedback.ok{ color:var(--verdigris); } .feedback.no{ color:var(--rust); }
+
+.overlay{ position:fixed; inset:0; z-index:50; background:rgba(5,7,18,.78);
+  display:flex; align-items:center; justify-content:center; padding:18px; }
+.modal{
+  width:100%; max-width:560px; background:linear-gradient(180deg,#1c234b,#101430);
+  border:1px solid var(--brass); border-radius:5px; padding:26px 24px; position:relative;
+  box-shadow:0 30px 80px rgba(0,0,0,.6);
+}
+.modal .close{ position:absolute; top:12px; right:14px; background:none; color:var(--brass-dim);
+  font-size:22px; padding:4px 8px; }
+.modal .close:hover{ color:var(--brass-glow); }
+.problem{ background:rgba(236,227,207,.06); border:1px dashed var(--line); border-radius:3px;
+  padding:18px 20px; margin:10px 0 16px; font-size:18px; color:var(--star); }
+.newclue{ margin-top:14px; border:1px solid var(--brass); background:rgba(201,165,92,.08);
+  color:var(--star); border-radius:3px; padding:13px 15px; font-size:15px; }
+
+.escape{ text-align:center; }
+.escape .big{ font-family:'Gowun Batang',serif; font-size:40px; color:var(--brass-glow); margin:10px 0;
+  text-shadow:0 0 24px rgba(232,200,122,.6); }
+.escape .clock{ font-size:20px; color:var(--star); margin:6px 0 18px; }
+
+.shake{ animation:shake .4s; }
+@keyframes shake{ 0%,100%{transform:translateX(0);} 20%,60%{transform:translateX(-7px);} 40%,80%{transform:translateX(7px);} }
+.fade{ animation:fade .4s ease; } @keyframes fade{ from{opacity:0; transform:translateY(8px);} to{opacity:1;} }
+.hidden{ display:none !important; }
+@media (prefers-reduced-motion: reduce){ *{ animation:none !important; } }
+</style>
+</head>
+<body>
+<div id="stars"></div>
+<div class="wrap">
+  <div class="topbar">
+    <div class="crest">秘密의 書庫 <small>TWENTY LOCKS · 대수</small></div>
+    <div class="meta">
+      <span class="team" id="teamLabel"></span>
+      <span class="count" id="countLabel"></span>
+      <span class="timer" id="timer">00:00</span>
+    </div>
+  </div>
+  <div id="app"></div>
+</div>
+
+<script>
+/* ============================================================
+   ★ 1. 최종 정답 ─ 팀이 단서를 조합해 맞혀야 하는 답
+   accept 에 허용 답안을 여러 개(동의어 포함). 띄어쓰기·대소문자 무시.
+   ============================================================ */
+const FINAL = {
+  accept: ["팔만대장경", "재조대장경", "고려대장경"],
+  placeholder: "단서를 조합한 최종 정답을 입력하세요"
+};
+
+/* ============================================================
+   ★ 2. 단서 ─ 위에서부터 '가장 어려운(추상적)' → '가장 쉬운(구체적)'
+   문제를 한 개 풀 때마다 위에서부터 한 줄씩 공개됩니다.
+   (어떤 문제를 푸는지와 무관, 푼 개수만큼 순서대로)
+   ============================================================ */
+const CLUES = [
+  "나는 나라가 큰 위기에 빠졌을 때, 믿음의 힘으로 적을 물리치려는 간절한 염원에서 태어났다.",
+  "나는 종이에 쓴 글이 아니라, 단단한 판에 한 글자씩 새겨 만든 기록이다.",
+  "나를 완성하는 데에는 무려 16년이라는 긴 세월이 걸렸다.",
+  "나는 한 왕조가 나라의 운명을 걸고 벌인 국가적 대사업의 결과물이다.",
+  "나를 만든 왕조는 '고려'이다.",
+  "내가 만들어질 무렵 고려를 다스린 임금은 '고종'이었다.",
+  "내가 새겨진 시기는 13세기, 대략 1236년부터 1251년까지다.",
+  "나는 북쪽에서 쳐들어온 거대한 이민족의 침략에 맞서 만들어졌다.",
+  "나를 만들게 한 그 침략자는 유라시아를 휩쓴 '몽골'이었다.",
+  "사실 나에게는 먼저 만들어진 '형(兄)'이 있었으나, 그것은 전쟁의 불길에 사라졌다.",
+  "그 앞선 대장경(초조대장경)은 더 옛날 '거란'의 침입을 막으려 만든 것이었다.",
+  "그 초조대장경은 1232년 몽골군의 침입으로 불타 없어졌다.",
+  "나는 불교의 경전을 한데 모아 집대성한 것으로, '대장경'이라 불린다.",
+  "나는 나무 판에 글자를 새긴 수많은 '목판'으로 이루어져 있다.",
+  "나를 이루는 목판은 그 수가 8만 장이 넘는다 (정확히는 81,258장).",
+  "목판의 수가 8만을 넘기에, 사람들은 내 이름 앞에 '팔만(八萬)'을 붙인다.",
+  "나는 지금 경상남도 합천의 '해인사'에 고이 보관되어 있다.",
+  "나를 품은 건물 '장경판전'은 유네스코 세계유산으로 등재되어 있다.",
+  "나는 고려가 다시 새긴 대장경이라 하여 '재조대장경'이라고도 불린다.",
+  "8만여 장의 목판에 새긴 고려의 대장경 — 내 이름은 '팔만'으로 시작한다."
+];
+
+/* ============================================================
+   ★ 3. 문제 20개 ─ 2022 개정 고등 대수 (단원 라벨 표시, 난이도 무작위 배치)
+   unit    : "지수·로그" / "삼각함수" / "수열" 중 하나 (타일 색·라벨 결정)
+   problem : 문제 (LaTeX는 \\( \\) 안에, JS라서 \ 는 \\ 로!)
+   answer  : 정답 목록(배열). 공백·대소문자 무시, 여러 표기 허용.
+   ============================================================ */
+const PROBLEMS = [
+  { unit:"지수·로그", problem:"\\(\\log_{2}3 \\cdot \\log_{3}4\\) 의 값을 구하시오.", answer:["2"] },
+  { unit:"삼각함수", problem:"\\(0\\le x<2\\pi\\) 에서 방정식 \\(2\\sin^{2}x-\\sin x-1=0\\) 의 서로 다른 실근의 개수를 구하시오.", answer:["3"] },
+  { unit:"수열", problem:"등차수열 \\(\\{a_n\\}\\) 에서 \\(a_3=7\\), \\(a_7=19\\) 일 때, 첫째항 \\(a_1\\) 을 구하시오.", answer:["1"] },
+  { unit:"지수·로그", problem:"방정식 \\(9^{x}=27^{\\,x-1}\\) 을 만족하는 \\(x\\) 의 값을 구하시오.", answer:["3"] },
+  { unit:"삼각함수", problem:"\\(\\sin\\theta+\\cos\\theta=\\dfrac{1}{2}\\) 일 때, \\(\\sin\\theta\\cos\\theta\\) 의 값을 구하시오.", answer:["-3/8","-0.375"] },
+  { unit:"수열", problem:"등비수열 \\(\\{a_n\\}\\) 에서 \\(a_2=6\\), \\(a_5=48\\) 일 때, 공비 \\(r\\) 를 구하시오.", answer:["2"] },
+  { unit:"지수·로그", problem:"방정식 \\(\\log_{2}x+\\log_{2}(x-2)=3\\) 의 해를 구하시오. (단, \\(x>2\\))", answer:["4"] },
+  { unit:"삼각함수", problem:"삼각형 ABC에서 \\(A=30^{\\circ}\\), \\(a=5\\) 일 때, 외접원의 반지름 \\(R\\) 를 구하시오.", answer:["5"] },
+  { unit:"수열", problem:"\\(\\displaystyle\\sum_{k=1}^{n}k=105\\) 일 때, 자연수 \\(n\\) 의 값을 구하시오.", answer:["14"] },
+  { unit:"지수·로그", problem:"\\((\\log_{2}9)(\\log_{3}8)\\) 의 값을 구하시오.", answer:["6"] },
+  { unit:"삼각함수", problem:"함수 \\(y=3\\sin\\!\\left(2x-\\dfrac{\\pi}{3}\\right)+1\\) 의 최댓값과 최솟값의 합을 구하시오.", answer:["2"] },
+  { unit:"수열", problem:"\\(\\displaystyle\\sum_{k=6}^{10}(2k-1)\\) 의 값을 구하시오.", answer:["75"] },
+  { unit:"지수·로그", problem:"방정식 \\(4^{x}-3\\cdot 2^{x}+2=0\\) 의 모든 실근의 합을 구하시오.", answer:["1"] },
+  { unit:"삼각함수", problem:"함수 \\(y=\\tan\\dfrac{\\pi x}{2}\\) 의 주기를 구하시오.", answer:["2"] },
+  { unit:"수열", problem:"수열 \\(\\{a_n\\}\\) 이 \\(a_1=1,\\; a_{n+1}=a_n+2n\\) 으로 정의될 때, \\(a_5\\) 를 구하시오.", answer:["21"] },
+  { unit:"지수·로그", problem:"방정식 \\(\\log_{4}x+\\log_{2}x=3\\) 의 해를 구하시오.", answer:["4"] },
+  { unit:"삼각함수", problem:"둘레의 길이가 \\(20\\) 인 부채꼴의 넓이가 최대일 때, 그 반지름의 길이를 구하시오.", answer:["5"] },
+  { unit:"수열", problem:"수열 \\(\\{a_n\\}\\) 의 첫째항부터 제 \\(n\\) 항까지의 합이 \\(S_n=n^{2}+2n\\) 일 때, \\(a_5\\) 를 구하시오.", answer:["11"] },
+  { unit:"지수·로그", problem:"방정식 \\(\\log_{3}(x-2)+\\log_{3}(x-4)=1\\) 의 해를 구하시오. (단, \\(x>4\\))", answer:["5"] },
+  { unit:"수열", problem:"첫째항이 \\(2\\), 공비가 \\(3\\) 인 등비수열의 첫째항부터 제 \\(n\\) 항까지의 합이 \\(80\\) 일 때, \\(n\\) 의 값을 구하시오.", answer:["4"] }
+];
+
+/* ============================================================
+   ↓↓↓ 동작 로직 — 보통은 수정할 필요 없습니다 ↓↓↓
+   ============================================================ */
+const app = document.getElementById('app');
+const timerEl = document.getElementById('timer');
+const teamLabel = document.getElementById('teamLabel');
+const countLabel = document.getElementById('countLabel');
+
+let teamName = '';
+let solved = PROBLEMS.map(()=>false);
+let startTime=null, timerId=null;
+
+(function makeStars(){
+  const box=document.getElementById('stars');
+  for(let i=0;i<90;i++){ const s=document.createElement('div'); s.className='star';
+    s.style.left=Math.random()*100+'%'; s.style.top=Math.random()*100+'%';
+    s.style.setProperty('--dur',(2.5+Math.random()*4)+'s'); s.style.setProperty('--del',(Math.random()*4)+'s');
+    if(Math.random()>0.85){ s.style.width='3px'; s.style.height='3px'; } box.appendChild(s); }
+})();
+
+function startTimer(){ if(timerId) return; startTime=Date.now();
+  timerId=setInterval(()=>{ const sec=Math.floor((Date.now()-startTime)/1000);
+    timerEl.textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0'); },250); }
+function stopTimer(){ clearInterval(timerId); timerId=null; }
+function elapsedText(){ const sec=Math.floor((Date.now()-startTime)/1000); return Math.floor(sec/60)+'분 '+(sec%60)+'초'; }
+
+function normalize(s){ return String(s).replace(/\s+/g,'').toLowerCase(); }
+function matches(input, list){ const n=normalize(input); return list.some(a=>normalize(a)===n); }
+function solvedCount(){ return solved.filter(Boolean).length; }
+function openClues(){ return Math.min(solvedCount(), CLUES.length); }
+function unitClass(u){ if(u.indexOf('지수')>=0) return 'unit-a'; if(u.indexOf('삼각')>=0) return 'unit-b'; return 'unit-c'; }
+function typeset(node){ if(window.MathJax&&MathJax.typesetPromise) MathJax.typesetPromise([node||app]).catch(()=>{}); }
+
+/* 매 라운드 시작 시 문제 순서를 무작위로 섞어 타일 위치를 바꿉니다.
+   (같은 20문제, 위치만 랜덤 → 옆 팀끼리 "○번 답은 □" 베끼기 방지). 끄려면 false. */
+const SHUFFLE = true;
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
+function newRound(){ if(SHUFFLE) shuffle(PROBLEMS); solved=PROBLEMS.map(()=>false); }
+
+function updateHeader(){
+  teamLabel.innerHTML = teamName ? `팀 <b>${teamName}</b>` : '';
+  countLabel.textContent = teamName ? `자물쇠 ${solvedCount()} / ${PROBLEMS.length}` : '';
+}
+
+/* ── 시작 화면 ── */
+function renderStart(){
+  app.innerHTML = `
+    <div class="card fade">
+      <div class="eyebrow">2022 개정 · 고등 대수</div>
+      <h1>스무 개의 자물쇠</h1>
+      <p class="lede">서고에는 스무 개의 자물쇠가 걸려 있습니다. 자물쇠를 하나 풀 때마다 숨겨진 정답에 대한 <b>단서</b>가 한 줄씩 풀립니다. 단서는 <b>가장 어려운(모호한) 것부터</b> 열리고, 풀수록 점점 또렷해집니다. 타일에는 단원이 색으로 표시되니 팀원끼리 강한 단원을 나눠 맡으세요. 단서를 모아 정답을 추론해 입력하면 탈출합니다.</p>
+      <div class="start-row">
+        <input type="text" id="team" placeholder="팀 이름을 입력하세요" autocomplete="off" />
+        <button class="btn-primary" id="begin">탐험 시작</button>
+      </div>
+    </div>`;
+  const t=document.getElementById('team');
+  const go=()=>{ teamName=t.value.trim()||'무명의 탐험대'; newRound(); startTimer(); renderGame(); };
+  document.getElementById('begin').onclick=go;
+  t.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
+  t.focus();
+}
+
+/* ── 본 게임 ── */
+function renderGame(){
+  updateHeader();
+  app.innerHTML = `
+    <div class="layout fade">
+      <div class="panel">
+        <h2>자물쇠</h2>
+        <div class="legend">
+          <span><i class="dot dot-a"></i>지수·로그</span>
+          <span><i class="dot dot-b"></i>삼각함수</span>
+          <span><i class="dot dot-c"></i>수열</span>
+        </div>
+        <div class="grid" id="grid"></div>
+        <div class="final">
+          <h2 style="margin-top:18px;">최종 탈출</h2>
+          <p class="lede" style="font-size:13px;">단서를 조합해 정답을 추론하세요. 언제든 시도할 수 있습니다.</p>
+          <div class="answer-row">
+            <input type="text" id="finalAns" placeholder="${FINAL.placeholder}" autocomplete="off" />
+            <button class="btn-primary" id="finalBtn">탈출 시도</button>
+          </div>
+          <div class="feedback" id="finalFb"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>단서 보드</h2>
+        <p class="lede" style="font-size:13px; margin-bottom:14px;">공개된 단서 <span id="clueOpen">0</span> / ${CLUES.length} · 어려운 단서부터 열립니다.</p>
+        <div class="clues" id="clues"></div>
+      </div>
+    </div>`;
+  renderGrid(); renderClues();
+  const fin=document.getElementById('finalAns');
+  const tryFinal=()=>{
+    if(matches(fin.value, FINAL.accept)){ renderEscape(); }
+    else{
+      const fb=document.getElementById('finalFb');
+      fb.className='feedback no'; fb.textContent='아직 자물쇠가 열리지 않습니다. 단서를 더 모아 보세요.';
+      const p=fin.closest('.panel'); p.classList.remove('shake'); void p.offsetWidth; p.classList.add('shake');
     }
-    
-    // 시작 시 문제 순서를 무작위로 섞음
-    shuffle(PROBLEMS);
+  };
+  document.getElementById('finalBtn').onclick=tryFinal;
+  fin.addEventListener('keydown',e=>{ if(e.key==='Enter') tryFinal(); });
+}
 
-    let currentProblemIndex = null;
-    let solvedCount = 0;
-
-    // 보드 렌더링
-    function init() {
-        const grid = document.getElementById('grid');
-        grid.innerHTML = '';
-        PROBLEMS.forEach((p, index) => {
-            const tile = document.createElement('div');
-            tile.className = `tile ${p.solved ? 'solved' : ''}`;
-            tile.onclick = () => openModal(index);
-            
-            if (p.solved) {
-                tile.innerHTML = `<h3>해결됨</h3>`;
-            } else {
-                tile.innerHTML = `
-                    <div class="tag ${p.type}">${p.name}</div>
-                    <div style="font-size:1.5rem; font-weight:bold;">${index + 1}</div>
-                `;
-            }
-            grid.appendChild(tile);
-        });
-        updateClues();
+function renderGrid(){
+  const grid=document.getElementById('grid'); grid.innerHTML='';
+  PROBLEMS.forEach((p,i)=>{
+    const b=document.createElement('button'); b.className='tile '+unitClass(p.unit);
+    if(solved[i]){
+      b.classList.add('solved');
+      b.innerHTML=`<span class="utag">${p.unit}</span><span class="tnum">✓</span>`;
+    } else {
+      b.innerHTML=`<span class="utag">${p.unit}</span><span class="tnum">${i+1}</span>`;
+      b.onclick=()=>openProblem(i);
     }
+    grid.appendChild(b);
+  });
+}
 
-    function openModal(index) {
-        if (PROBLEMS[index].solved) return;
-        currentProblemIndex = index;
-        const p = PROBLEMS[index];
-        
-        const tagDiv = document.getElementById('modal-tag');
-        tagDiv.className = `tag ${p.type}`;
-        tagDiv.innerText = p.name;
-        
-        document.getElementById('modal-title').innerText = `문제 ${index + 1}`;
-        document.getElementById('modal-problem').innerHTML = p.q;
-        document.getElementById('modal-input').value = '';
-        document.getElementById('modal').style.display = 'flex';
-        
-        // MathJax 렌더링 업데이트
-        MathJax.typesetPromise();
+function renderClues(){
+  const box=document.getElementById('clues'); box.innerHTML='';
+  const open=openClues();
+  CLUES.forEach((c,i)=>{
+    const isOpen = i < open;
+    const row=document.createElement('div'); row.className='clue'+(isOpen?' open':'');
+    row.innerHTML = `<span class="no">${String(i+1).padStart(2,'0')}</span>
+      <span class="text">${isOpen?c:'<span class="locked-text">● ● ● ● ● ● ● ●</span>'}</span>`;
+    box.appendChild(row);
+  });
+  const oc=document.getElementById('clueOpen'); if(oc) oc.textContent=open;
+}
+
+/* ── 문제 모달 (힌트 없음) ── */
+function openProblem(i){
+  const p=PROBLEMS[i];
+  const ov=document.createElement('div'); ov.className='overlay';
+  ov.innerHTML = `
+    <div class="modal fade">
+      <button class="close" aria-label="닫기">×</button>
+      <div class="eyebrow">자물쇠 ${i+1} · ${p.unit}</div>
+      <div class="problem">${p.problem}</div>
+      <div class="answer-row">
+        <input type="text" id="mAns" placeholder="정답 입력" autocomplete="off" />
+        <button class="btn-primary" id="mCheck">확인</button>
+      </div>
+      <div class="feedback" id="mFb"></div>
+    </div>`;
+  document.body.appendChild(ov);
+  typeset(ov);
+  const close=()=>ov.remove();
+  ov.querySelector('.close').onclick=close;
+  ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
+  const ans=ov.querySelector('#mAns');
+  const fb=ov.querySelector('#mFb');
+  const check=()=>{
+    if(matches(ans.value, p.answer)){
+      solved[i]=true; updateHeader(); renderGrid(); renderClues();
+      const n=openClues();
+      const newClue = n>0 ? `<div class="newclue">${CLUES[n-1]}</div>`
+        : `<p class="lede">공개할 단서가 모두 소진되었습니다.</p>`;
+      const clueLabel = n>0 ? `단서 <b>${n}번</b>이 보드에 공개되었습니다.` : '';
+      ov.querySelector('.modal').innerHTML = `
+        <button class="close" aria-label="닫기">×</button>
+        <div class="eyebrow">자물쇠 ${i+1} 해제</div>
+        <h2 style="margin:8px 0 12px; color:var(--verdigris);">정답입니다!</h2>
+        <p class="lede">${clueLabel}</p>
+        ${newClue}
+        <button class="btn-primary btn-big" id="mDone">계속하기</button>`;
+      ov.querySelector('.close').onclick=close;
+      ov.querySelector('#mDone').onclick=close;
+    } else {
+      fb.className='feedback no'; fb.textContent='맞지 않습니다. 다시 풀어 보세요.';
+      const m=ov.querySelector('.modal'); m.classList.remove('shake'); void m.offsetWidth; m.classList.add('shake');
     }
+  };
+  ov.querySelector('#mCheck').onclick=check;
+  ans.addEventListener('keydown',e=>{ if(e.key==='Enter') check(); });
+  ans.focus();
+}
 
-    function closeModal() {
-        document.getElementById('modal').style.display = 'none';
-        currentProblemIndex = null;
-    }
+/* ── 탈출 ── */
+function renderEscape(){
+  stopTimer();
+  app.innerHTML = `
+    <div class="card escape fade">
+      <div class="eyebrow">탈출 성공</div>
+      <div class="big">서고의 문이 열렸다 ☼</div>
+      <div class="clock">팀 <b>${teamName}</b> · 소요 시간 ${elapsedText()} · 해제한 자물쇠 ${solvedCount()} / ${PROBLEMS.length}</div>
+      <p class="lede">단서가 가리킨 답은 <b>팔만대장경</b>이었습니다.</p>
+      <button class="btn-ghost btn-big" id="again" style="margin-top:22px;">다른 팀으로 다시 시작</button>
+    </div>`;
+  document.getElementById('again').onclick=()=>{
+    teamName=''; solved=PROBLEMS.map(()=>false);
+    stopTimer(); startTime=null; timerEl.textContent='00:00'; updateHeader(); renderStart();
+  };
+}
 
-    function checkAnswer() {
-        const input = document.getElementById('modal-input').value.trim();
-        const p = PROBLEMS[currentProblemIndex];
-        
-        if (p.a.includes(input)) {
-            alert("정답입니다! 새로운 단서가 공개됩니다.");
-            p.solved = true;
-            solvedCount++;
-            closeModal();
-            init(); // 보드 및 단서 재렌더링
-        } else {
-            alert("틀렸습니다. 수식을 다시 확인해보세요.");
-        }
-    }
-
-    function updateClues() {
-        document.getElementById('clue-count').innerText = solvedCount;
-        const cluesDiv = document.getElementById('clues');
-        cluesDiv.innerHTML = '';
-        
-        for (let i = 0; i < solvedCount; i++) {
-            const clueEl = document.createElement('div');
-            clueEl.className = 'clue-item';
-            clueEl.innerText = `단서 ${i + 1} : ${CLUES[i]}`;
-            cluesDiv.appendChild(clueEl);
-        }
-    }
-
-    function checkFinal() {
-        const input = document.getElementById('final-answer').value.replace(/\s+/g, '');
-        if (FINAL_ANSWERS.includes(input)) {
-            alert(`🎉 축하합니다! ${solvedCount}개의 문제를 풀고 완벽하게 진실을 밝혀냈습니다!\n\n최종 정답: 팔만대장경`);
-        } else {
-            alert("아직 진실에 도달하지 못했습니다. 단서를 더 모아보세요.");
-        }
-    }
-
-    // 초기 실행
-    init();
+renderStart();
 </script>
 </body>
 </html>
