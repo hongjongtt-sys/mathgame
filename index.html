@@ -280,6 +280,7 @@ let teamName = '';
 let classId = '';
 let solved = PROBLEMS.map(()=>false);
 let startTime=null, timerId=null, timeUp=false;
+let limitMin = LIMIT_MIN;   // 현황판에서 반별 값을 받으면 덮어씀(없으면 LIMIT_MIN 사용)
 
 (function makeStars(){
   const box=document.getElementById('stars');
@@ -293,8 +294,8 @@ function fmtClock(sec){ if(sec<0) sec=0; return String(Math.floor(sec/60)).padSt
 function startTimer(){ if(timerId) return; startTime=Date.now(); timeUp=false; timerEl.classList.remove('timeup');
   timerId=setInterval(()=>{
     const elapsed=Math.floor((Date.now()-startTime)/1000);
-    if(LIMIT_MIN>0){
-      const remain=LIMIT_MIN*60-elapsed;
+    if(limitMin>0){
+      const remain=limitMin*60-elapsed;
       if(remain<=0){
         timerEl.textContent='시간 종료';
         if(!timeUp){ timeUp=true; onTimeUp(); }
@@ -347,10 +348,16 @@ function renderStart(){
   const sel=document.getElementById('classSel');
   sel.innerHTML = CLASSES.map(c=>`<option value="${c}">${c}</option>`).join('');
   const t=document.getElementById('team');
-  const go=()=>{
+  const go=async ()=>{
     teamName=t.value.trim()||'무명의 탐험대';
     classId=sel.value||CLASSES[0];
-    newRound(); startTimer();
+    newRound();
+    // 현황판에서 저장한 반별 제한 시간을 먼저 읽어옴(없으면 기본값)
+    limitMin = LIMIT_MIN;
+    if(window.Cloud && window.Cloud.getLimit){
+      try{ const v=await window.Cloud.getLimit(classId); if(typeof v==='number') limitMin=v; }catch(e){}
+    }
+    startTimer();
     if(window.Cloud) window.Cloud.start(classId, teamName, PROBLEMS.length);
     renderGame();
   };
@@ -509,7 +516,7 @@ renderStart();
      ============================================================ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD0D8v1onv93bGKkIwTpQ9MDI_bn6ddWOc",
@@ -520,6 +527,7 @@ const firebaseConfig = {
   appId: "1:369540360094:web:847ad2e8dc713a71b4588f"
 };
 const COLLECTION = "escape_sessions";   // ← 현황판과 반드시 동일
+const CONFIG_COLLECTION = "class_config";  // ← 현황판과 동일 (반별 제한시간)
 
 let db=null, ready=false;
 try{
@@ -532,6 +540,13 @@ function sid(c,t){ return (c+"__"+t).replace(/[\/\.\#\$\[\]\s]+/g,"_").slice(0,1
 let ref=null;
 window.Cloud = {
   enabled:()=>ready,
+  async getLimit(classId){
+    if(!ready) return null;
+    try{ const s=await getDoc(doc(db, CONFIG_COLLECTION, classId));
+      if(s.exists() && typeof s.data().limitMin==='number') return s.data().limitMin;
+    }catch(e){ console.warn(e); }
+    return null;
+  },
   async start(classId, team, total){
     if(!ready) return;
     try{ ref = doc(db, COLLECTION, sid(classId,team));
